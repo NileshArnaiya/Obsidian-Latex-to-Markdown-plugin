@@ -9,7 +9,7 @@ export default class LatexToMarkdownPlugin extends Plugin {
         await this.loadSettings();
 
         // ── Ribbon icon ─────────────────────────────────────────────────
-        this.addRibbonIcon('file-input', 'Convert LaTeX to Markdown', () => {
+        this.addRibbonIcon('file-input', 'Convert LaTeX to markdown', () => {
             const view = this.app.workspace.getActiveViewOfType(MarkdownView);
             if (view) {
                 this.convertActiveNote(view.editor);
@@ -20,8 +20,8 @@ export default class LatexToMarkdownPlugin extends Plugin {
 
         // ── Command: Convert selection or entire note ────────────────────
         this.addCommand({
-            id: 'convert-latex-to-markdown',
-            name: 'Convert LaTeX to Markdown',
+            id: 'convert',
+            name: 'Convert current note or selection',
             editorCallback: (editor: Editor) => {
                 this.convertActiveNote(editor);
             },
@@ -29,8 +29,8 @@ export default class LatexToMarkdownPlugin extends Plugin {
 
         // ── Command: Import .tex file ────────────────────────────────────
         this.addCommand({
-            id: 'import-latex-file',
-            name: 'Import LaTeX file as Markdown',
+            id: 'import',
+            name: 'Import file',
             callback: () => {
                 this.importLatexFile();
             },
@@ -38,17 +38,17 @@ export default class LatexToMarkdownPlugin extends Plugin {
 
         // ── Command: Paste clipboard as Markdown ─────────────────────────
         this.addCommand({
-            id: 'paste-latex-as-markdown',
-            name: 'Paste LaTeX as Markdown',
-            editorCallback: async (editor: Editor) => {
-                await this.pasteLatexAsMarkdown(editor);
+            id: 'paste',
+            name: 'Paste as markdown',
+            editorCallback: (editor: Editor) => {
+                this.pasteLatexAsMarkdown(editor).catch(console.error);
             },
         });
 
         // ── Command: Preview conversion ──────────────────────────────────
         this.addCommand({
-            id: 'preview-latex-conversion',
-            name: 'Preview LaTeX to Markdown conversion',
+            id: 'preview',
+            name: 'Preview conversion',
             editorCallback: (editor: Editor) => {
                 this.previewConversion(editor);
             },
@@ -91,22 +91,21 @@ export default class LatexToMarkdownPlugin extends Plugin {
         }
     }
 
-    private async importLatexFile() {
+    private importLatexFile(): void {
         // Create an invisible file input element
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.tex,.latex,.ltx';
-        input.style.display = 'none';
+        input.setCssProps({ display: 'none' });
         document.body.appendChild(input);
 
-        input.addEventListener('change', async () => {
-            const file = input.files?.[0];
-            if (!file) {
-                document.body.removeChild(input);
-                return;
-            }
+        input.addEventListener('change', () => {
+            const processFile = async () => {
+                const file = input.files?.[0];
+                if (!file) {
+                    return;
+                }
 
-            try {
                 const text = await file.text();
                 const converted = convertLatexToMarkdown(text, this.settings);
 
@@ -123,15 +122,21 @@ export default class LatexToMarkdownPlugin extends Plugin {
 
                 const newFile = await this.app.vault.create(fileName, converted);
                 const leaf = this.app.workspace.getLeaf(false);
-                await leaf.openFile(newFile as TFile);
+                if (newFile instanceof TFile) {
+                    await leaf.openFile(newFile);
+                }
 
                 new Notice(`✅ Imported "${file.name}" as "${fileName}".`);
-            } catch (err) {
-                new Notice(`❌ Error importing file: ${err}`);
-                console.error('LaTeX import error:', err);
-            } finally {
-                document.body.removeChild(input);
-            }
+            };
+
+            processFile()
+                .catch(err => {
+                    new Notice(`❌ Error importing file: ${err}`);
+                    console.error('LaTeX import error:', err);
+                })
+                .finally(() => {
+                    document.body.removeChild(input);
+                });
         });
 
         input.click();
@@ -189,7 +194,7 @@ class ConversionPreviewModal extends Modal {
         const { contentEl } = this;
         contentEl.addClass('latex-to-md-preview-modal');
 
-        contentEl.createEl('h2', { text: 'LaTeX → Markdown Preview' });
+        contentEl.createEl('h2', { text: 'LaTeX to markdown preview' });
 
         // Side-by-side panels
         const container = contentEl.createDiv({ cls: 'latex-to-md-preview-container' });
@@ -239,7 +244,7 @@ class LatexToMarkdownSettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        containerEl.createEl('h2', { text: 'LaTeX to Markdown — Settings' });
+        new Setting(containerEl).setHeading().setName('LaTeX to markdown settings');
 
         new Setting(containerEl)
             .setName('Heading offset')
@@ -266,7 +271,7 @@ class LatexToMarkdownSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Use Wikilinks for references')
+            .setName('Use wikilinks for references')
             .setDesc('Convert \\ref{} to [[#label]] (wikilink) instead of [label](#label).')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.useWikilinks)

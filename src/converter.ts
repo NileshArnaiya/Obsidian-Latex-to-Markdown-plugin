@@ -100,7 +100,7 @@ function protectMathEnvironments(text: string, store: string[]): string {
     }
 
     // Inline math: $ ... $ (non-greedy, single line)
-    text = text.replace(/\$([^\$\n]+?)\$/g, (_match, content) => {
+    text = text.replace(/\$([^$\n]+?)\$/g, (_match, content) => {
         store.push(content);
         return `%%MATH_INLINE_${store.length - 1}%%`;
     });
